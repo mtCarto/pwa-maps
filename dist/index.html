@@ -127,6 +127,16 @@
   <script>
     var db = new PouchDB('mapathon');
     var remoteDB = new PouchDB('https://3da723f0-0cdb-4a18-9014-29dbc59ce2e5-bluemix.cloudant.com/mapathon');
+
+    db.sync(remoteDB, {
+      live: true,
+      retry: true
+    }).on('change', function (change) {
+      console.log("Synced (live sync)")
+    }).on('error', function (e) {
+      console.log("Couldn't connect: ", e)
+    });
+    
     /**
      * Global map object
      */
@@ -174,21 +184,9 @@
         console.log(featuresJSON);
       } else {
         console.log("no features")
-      if (e.type !== 'draw.delete')
-        alert('Use the draw tools to draw a polygon!');
+        if (e.type !== 'draw.delete')
+          alert('Use the draw tools to draw a polygon!');
       }
-      
-      db.sync(remoteDB, function(err, response) {
-        if (err) {
-            return console.log("Couldn't sync: ", err);
-        } else {
-            console.log("Sync successful: ", response);
-        }
-      }).then(
-        console.log("Synced")
-      ).catch(function(e) {
-        console.log("Couldn't connect: ", e)
-      })
     }
 
     map.on("click", function (e) {
