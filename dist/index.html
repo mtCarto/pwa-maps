@@ -122,8 +122,7 @@
   <div id="loading" class="loading loading-lg"></div>
   <div id="map" class="not-visible"></div>
   <script src="/js/mapbox-gl.js"></script>
-  <!-- <script src="/js/mapbox-gl-draw.js"></script>-->
-  <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.0.9/mapbox-gl-draw.js'></script>
+  <script src="/js/mapbox-gl-draw.js"></script>
   <script src="/js/pouchdb-7.1.1.min.js"></script>
   <script>
     var db = new PouchDB('mapathon');
@@ -161,9 +160,6 @@
       map.on('draw.delete', saveFeature);
       map.on('draw.update', saveFeature);
     });
-
-        
-
 
     function saveFeature(e) {
       var data = draw.getAll();
