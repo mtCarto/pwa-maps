@@ -175,7 +175,6 @@
       var data = draw.getAll();
       console.log(data)
       if (data.features.length > 0) {
-        console.log("found some features")
         for (i=0; i < data.features.length > 0; i++) {
           var featureId = `${new Date().toJSON()}_${i}_myfeature`;
           var featuresJSON = {feature: data.features[i], _id: featureId}
@@ -222,11 +221,14 @@
         "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"],
         "maxzoom": 16
       })
-      map.addLayer({
-        id: "world_topo",
-        type: "raster",
-        source: "world_topoSource",
-      });
+      map.addLayer(
+        {
+          id: "world_topo",
+          type: "raster",
+          source: "world_topoSource",
+        },
+        "gl-draw-polygon-fill-inactive.cold"
+      );
 
       // map.addSource('digital-roads', {
       //   type: 'vector',
