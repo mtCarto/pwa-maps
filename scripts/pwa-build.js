@@ -1,20 +1,24 @@
 const fs = require('fs-extra')
 
 var pwa = `<!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progressive Web Fox dist Test</title>
+  <script>
+    if (
+      window.location.protocol === "http:" &&
+      window.location.origin != "http://127.0.0.1:8080"
+    ) {
+      location.href = location.href.replace("http://", "https://");
+    }
+  </script>
+  <link href="/css/mapbox-gl.css" rel="stylesheet" />
+  <link href="/css/mapbox-gl-draw.css" rel="stylesheet" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d8e8c8" />
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="msapplication-starturl" content="/">
-
-  <title>My First PWA Map</title>
-  <!--register the service worker-->
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
@@ -23,81 +27,238 @@ var pwa = `<!DOCTYPE html>
           console.log("Service Worker Registered");
         });
     }
+    //       if(window.navigator && navigator.serviceWorker) {
+    //   navigator.serviceWorker.getRegistrations()
+    //   .then(function(registrations) {
+    //     for(let registration of registrations) {
+    //       registration.unregister();
+    //     }
+    //   });
+    // }
   </script>
-  <link href="/mapboxgl.css" rel="stylesheet" />
-  <script src="/mapboxgl.js"></script>
   <style>
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  }
-  #map {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    animation: fadeIn 0.5s ease-in-out;
-    background: whitesmoke;
-  }
-  @keyframes fadeIn {
-    0% {opacity: 0;}
-    100% {opacity: 1;}
-  }
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .loading {
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.6);
+      height: 100vh;
+    }
+
+    .loading.loading-lg::after {
+      height: 1.6rem;
+      margin-left: -0.8rem;
+      margin-top: -0.8rem;
+      width: 1.6rem;
+    }
+
+    .loading::after {
+      animation: loading 0.5s infinite linear;
+      border: 0.1rem solid #d8e8c8;
+      border-radius: 50%;
+      border-right-color: transparent;
+      border-top-color: transparent;
+      content: "";
+      display: block;
+      height: 0.8rem;
+      left: 50%;
+      margin-left: -0.4rem;
+      margin-top: -0.4rem;
+      position: absolute;
+      top: 50%;
+      width: 0.8rem;
+      z-index: 1;
+    }
+
+    @keyframes loading {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      0% {
+        opacity: 0;
+      }
+
+      100% {
+        opacity: 1;
+      }
+    }
+
+    .not-visible {
+      visibility: hidden;
+    }
+
+    .mapboxgl-ctrl,
+    .mapboxgl-ctrl.mapboxgl-ctrl-group {
+      border-radius: 2px;
+      border: solid thin lightgray;
+      box-shadow: none;
+    }
   </style>
 </head>
+
 <body>
-  <div id="map">
-    <div id="nojs"><h1>Error: JavaScript is needed to run this page!</h1></div>
-  </div>
+  <div id="loading" class="loading loading-lg"></div>
+  <div id="map" class="not-visible"></div>
+  <script src="/js/mapbox-gl.js"></script>
+  <script src="/js/mapbox-gl-draw.js"></script>
+  <script src="/js/pouchdb-7.1.1.min.js"></script>
   <script>
-  document.getElementById("nojs").style.display = "none";
-  var map = new mapboxgl.Map({
-    container: "map",
-    style: {
-      "version": 8,
-      "name": "blank",
-      "sources": {
-        "openmaptiles": {
-          "type": "vector",
-          "url": ""
+    var db = new PouchDB('mapathon');
+    var remoteDB = new PouchDB('https://3da723f0-0cdb-4a18-9014-29dbc59ce2e5-bluemix.cloudant.com/mapathon');
+    /**
+     * Global map object
+     */
+    var map = new mapboxgl.Map({
+      container: "map",
+      style: "bright.json",
+      hash: true,
+      center: [-125.7489875, 49.7314838],
+      zoom: 10
+    });
+
+    var draw = new MapboxDraw();
+    map.addControl(draw, 'top-left');
+
+    map.addControl(new mapboxgl.NavigationControl());
+
+    map.addControl(
+      new mapboxgl.GeolocateControl({
+        positionOptions: {
+          enableHighAccuracy: true
+        },
+        trackUserLocation: true
+      })
+    );
+
+    map.on("load", function () {
+      addLayers();
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('map').classList.remove('not-visible');
+      map.on('draw.create', saveFeature);
+      map.on('draw.delete', saveFeature);
+      map.on('draw.update', saveFeature);
+    });
+
+    function saveFeature(e) {
+      var data = draw.getAll();
+      console.log(data)
+      if (data.features.length > 0) {
+        for (i=0; i < data.features.length > 0; i++) {
+          var featureId = new Date().toJSON() + '_' +i '_myfeature';
+          var featuresJSON = {feature: data.features[i], _id: featureId}
+          db.put(featuresJSON)
         }
-      },
-      "layers": [{
-        "id": "background",
-        "type": "background",
-        "paint": {
-          "background-color": "#f8f4f0"
-        }
-      }]
-    },
-    hash: true,
-    center: [-82.58844, 39.5933],
-    zoom: 6
-  });
-  map.addControl(new mapboxgl.NavigationControl());
-  map.addControl(new mapboxgl.FullscreenControl());
-  
-  map.on('load', function() {
-    map.addLayer({
-      id: "states",
-      "type": "line",
-      source: {
-        "type": "geojson",
-        "data": "/geojson/states.geojson"
-      },
-      "paint": {
-        "line-color": "skyblue",
+        // console.log(featuresJSON);
+      } else {
+        // console.log("no features")
+      if (e.type !== 'draw.delete')
+        alert('Use the draw tools to draw a polygon!');
       }
-    })
-  })
-  
+      
+      db.sync(remoteDB, function(err, response) {
+        if (err) {
+            return console.log("Couldn't sync: ", err);
+        } else {
+            console.log("Sync successful: ", response);
+        }
+      }).then(
+        console.log("Synced")
+      ).catch(function(e) {
+        console.log("Couldn't connect: ", e)
+      })
+    }
+
+    map.on("click", function (e) {
+      var features = map.queryRenderedFeatures(e.point);
+      // if (features.length && features[0].source === "cc-trailsSource") {
+      //   var popup = new mapboxgl.Popup().setLngLat(e.lngLat);
+      //   var html = "";
+      //   html += "<h2>" + features[0].properties.Name + "</h2>"
+      //   popup.setHTML(html);
+      //   popup.addTo(map);
+      // }
+    });
+
+    function addGeoJSONSource(m, g, base) {
+      let n = g.split(".");
+      let sanitized = n[0].replace(" ", "");
+      let s = n[0] + "Source";
+      console.log("attempting to add source", s);
+      m.addSource(s, {
+        type: "geojson",
+        data: base + g
+      });
+    }
+
+    function addLayers() {
+
+      /**
+       * Check Source 
+       */
+
+      map.addSource('world_topoSource', {
+        type: "raster",
+        "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"],
+        "maxzoom": 16
+      })
+      map.addLayer({
+        id: "world_topo",
+        type: "raster",
+        source: "world_topoSource",
+      });
+
+      // map.addSource('digital-roads', {
+      //   type: 'vector',
+      //   url: 'https://openmaps.gov.bc.ca/geo/pub/WHSE_BASEMAPPING.DRA_DGTL_ROAD_ATLAS_MPAR_SP/ows?service=WMS&request=GetMap'
+      // });
+      // map.addLayer({
+      //   'id': 'digital-roads-layer',
+      //   'type': 'line',
+      //   'scheme': 'tms',
+      //   'source': 'digital-roads',
+      //   'source-layer': 'WHSE_BASEMAPPING.DRA_DGTL_ROAD_ATLAS_MPAR_SP',
+      //   'layout': {
+      //     'line-join': 'round',
+      //     'line-cap': 'round'
+      //   },
+      //   'paint': {
+      //     'line-color': '#ff69b4',
+      //     'line-width': 1
+      //   }
+      // });
+
+    }
+
   </script>
 </body>
+
 </html>`
 
-fs.copy('./dist/geojson/gz_2010_us_040_00_20m.json', './public/geojson/states.geojson')
+fs.copy('./dist/geojson/powerlines.geojson', './public/geojson/powerlines.geojson')
 .catch(function(err) {
   console.log(err)
 });
@@ -107,11 +268,35 @@ fs.copy('./dist/bright-local.json', './public/bright.json')
   console.log(err)
 });
 
-fs.copy('./node_modules/mapbox-gl/dist/mapbox-gl.css', './public/mapboxgl.css')
+fs.copy('./node_modules/mapbox-gl/dist/mapbox-gl.css', './public/mapbox-gl.css')
 .then(function() {
   console.log('copied mapbox.css')
 })
+.catch(function(err) {
+  console.log(err)
+});
 
+fs.copy('./node_modules/mapbox-gl/dist/mapbox-gl.css', './public/mapbox-gl.css')
+.then(function() {
+  console.log('copied mapbox.css')
+})
+.catch(function(err) {
+  console.log(err)
+});
+
+fs.copy('./node_modules/@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css', './public/mapbox-gl-draw.css')
+.then(function() {
+  console.log('copied mapbox-draw.css')
+})
+.catch(function(err) {
+  console.log(err)
+});
+
+
+fs.copy('./node_modules/@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.js', './public/mapbox-gl-draw.js')
+.then(function() {
+  console.log('copied mapbox-draw.css')
+})
 .catch(function(err) {
   console.log(err)
 });
